@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Musical Room</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        body {
+            background-color: #bfe3dd;
+            color: #000;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        a {
+            color: #2983ff;
+        }
+
+        #quitButton, #playButton, #closeButton {
+            position: absolute;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 1001;
+        }
+
+        #quitButton {
+            top: 20px;
+            right: 20px;
+            background-color: #ff4d4d;
+        }
+
+        #playButton {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            background-color: #ff9800;
+        }
+
+        #topicsTable {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            border: 1px solid #000;
+            padding: 20px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        #quizContainer {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            border: 1px solid #000;
+            padding: 20px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        #questionContainer {
+            text-align: center;
+        }
+
+        #choices li {
+            list-style-type: none;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #choices li:hover {
+            background-color: #45a049;
+        }
+
+        #nextButton {
+            display: none;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #2980b9;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #resultContainer {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            border: 1px solid #000;
+            padding: 20px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        #playAgainButton {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #2980b9;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+
+    <div id="info">
+        <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgl - animation - keyframes<br/>
+        Model: <a href="https://artstation.com/artwork/1AGwX" target="_blank" rel="noopener">Littlest Tokyo</a> by
+        <a href="https://artstation.com/glenatron" target="_blank" rel="noopener">Glen Fox</a>, CC Attribution.
+    </div>
+
+    <button id="quitButton">Quit</button>
+    <button id="playButton">Play</button>
+
+    <div id="topicsTable">
+        <h2>Choose a Topic</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Topic</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr data-topic="cailuong">
+                    <td>Cải Lương</td>
+                </tr>
+                <tr data-topic="hatboi">
+                    <td>Hát Bội</td>
+                </tr>
+                <tr data-topic="doncataitu">
+                    <td>Đờn Ca Tài Tử</td>
+                </tr>
+                <tr data-topic="cheo">
+                    <td>Chèo</td>
+                </tr>
+                <tr data-topic="quanho">
+                    <td>Quan Họ</td>
+                </tr>
+                <!-- Add more topics if needed -->
+            </tbody>
+        </table>
+        <button id="closeButton">Close</button>
+    </div>
+
+    <div id="quizContainer">
+        <div id="questionContainer">
+            <h2 id="question"></h2>
+            <ul id="choices"></ul>
+            <button id="nextButton">Next Question</button>
+        </div>
+    </div>
+
+
+    <div id="resultContainer">
+        <h2>Quiz Result</h2>
+        <p id="result"></p>
+        <button id="playAgainButton">Play Again</button>
+    </div>
+
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../build/three.module.js",
+                "three/addons/": "./jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import Stats from 'three/addons/libs/stats.module.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+        let mixer, character;
+        const clock = new THREE.Clock();
+        const container = document.getElementById('container');
+        const stats = new Stats();
+        container.appendChild(stats.dom);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xbfe3dd);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 100);
+        camera.position.set(5, 2, 8);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0.5, 0);
+        controls.update();
+        controls.enablePan = false;
+        controls.enableDamping = true;
+
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('jsm/libs/draco/gltf/');
+        const loader = new GLTFLoader();
+        loader.setDRACOLoader(dracoLoader);
+
+        // Load the musical room model
+        loader.load('models/gltf/class_room_01.glb', function(gltf) {
+            const model = gltf.scene;
+            model.position.set(1, 1, 1);
+            model.scale.set(1, 1, 1);
+            scene.add(model);
+
+            // Load the character model
+            loader.load('models/gltf/kid_boy.glb', function(gltf) {
+                character = gltf.scene;
+                character.position.set(5, 3, 5);
+                character.scale.set(1, 1, 1);
+                scene.add(character);
+
+                // Adjust initial y-coordinate to place the character on the ground
+                detectGround(character);
+
+                renderer.setAnimationLoop(animate);
+            }, undefined, function(e) {
+                console.error(e);
+            });
+        }, undefined, function(e) {
+            console.error(e);
+        });
+
+        window.onresize = function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        // Movement variables
+        const moveSpeed = 0.1;
+        const rotateSpeed = 0.05;
+        const keys = {};
+
+        // Keydown event listener
+        document.addEventListener('keydown', (event) => {
+            keys[event.code] = true;
+        });
+
+        // Keyup event listener
+        document.addEventListener('keyup', (event) => {
+            keys[event.code] = false;
+        });
+
+        function detectGround(object) {
+            const downRay = new THREE.Raycaster(object.position, new THREE.Vector3(0, -1, 0), 0, 10);
+            const intersects = downRay.intersectObjects(scene.children, true);
+
+            if (intersects.length > 0) {
+                const groundY = intersects[0].point.y;
+                object.position.y = groundY + 2; // Adjust object height as needed
+            }
+        }
+
+        function update() {
+            if (character) {
+                const initialPosition = character.position.clone();
+
+                if (keys['KeyS']) {
+                    character.translateZ(-moveSpeed); // Move forward
+                }
+                if (keys['KeyW']) {
+                    character.translateZ(moveSpeed); // Move backward
+                }
+                if (keys['KeyA']) {
+                    character.rotation.y += rotateSpeed; // Rotate left
+                }
+                if (keys['KeyD']) {
+                    character.rotation.y -= rotateSpeed; // Rotate right
+                }
+
+                detectGround(character);
+
+                // Update camera position to follow the character's back
+                const relativeCameraOffset = new THREE.Vector3(-12, 2, -17);
+                const cameraOffset = relativeCameraOffset.applyMatrix4(character.matrixWorld);
+                camera.position.lerp(cameraOffset, 0.1); // Smooth camera movement
+                camera.lookAt(character.position);
+                controls.target.set(character.position.x, character.position.y + 1, character.position.z);
+                controls.update();
+            }
+        }
+
+        function animate() {
+            const delta = clock.getDelta();
+            update();
+            stats.update();
+            renderer.render(scene, camera);
+        }
+
+        // Quit button event listener
+        document.getElementById('quitButton').addEventListener('click', () => {
+            window.location.href = 'webgl_animation_keyframes.html'; // Replace with the main city page URL
+        });
+
+        // Play button event listener
+        document.getElementById('playButton').addEventListener('click', () => {
+            document.getElementById('playButton').style.display = 'none';
+            document.getElementById('topicsTable').style.display = 'block';
+        });
+
+        // Close button event listener
+        document.getElementById('closeButton').addEventListener('click', () => {
+            document.getElementById('topicsTable').style.display = 'none';
+            document.getElementById('playButton').style.display = 'block'; // Show the play button again
+        });
+
+        // Topic row event listener
+        document.querySelectorAll('#topicsTable tbody tr').forEach(row => {
+            row.addEventListener('click', (event) => {
+                const topic = event.currentTarget.getAttribute('data-topic');
+                startQuiz(topic);
+            });
+        });
+
+        // Define quiz questions and answers
+        const quizQuestions = [
+            {
+                question: "Who is considered the 'Father of Cải Lương'?",
+                choices: ["Tài Linh", "Võ Văn Tường", "Thanh Nga", "Minh Vương"],
+                correctAnswer: "Võ Văn Tường"
+            },
+            {
+                question: "What musical instrument is commonly used in Cải Lương performances?",
+                choices: ["Đàn Nguyệt", "Đàn Tranh", "Đàn Bầu", "Đàn Kim"],
+                correctAnswer: "Đàn Bầu"
+            },
+            {
+                question: "Which famous Vietnamese writer composed many Cải Lương scripts?",
+                choices: ["Tô Hoài", "Nguyễn Tuân", "Nguyễn Khắc Phục", "Hoàng Cầm"],
+                correctAnswer: "Hoàng Cầm"
+            },
+            {
+                question: "Cải Lương originated in which region of Vietnam?",
+                choices: ["Northern Vietnam", "Central Vietnam", "Southern Vietnam", "Mekong Delta"],
+                correctAnswer: "Southern Vietnam"
+            },
+            {
+                question: "Which of these themes is commonly portrayed in Cải Lương?",
+                choices: ["Ancient mythology", "Modern political issues", "Urban lifestyle", "Agricultural practices"],
+                correctAnswer: "Ancient mythology"
+            },
+            {
+                question: "Who is known for their unique vocal style in Cải Lương?",
+                choices: ["Kim Cương", "Thanh Hằng", "Trọng Phúc", "Quang Lê"],
+                correctAnswer: "Kim Cương"
+            },
+            {
+                question: "What is a common characteristic of Cải Lương performances?",
+                choices: ["Minimal use of costumes", "Solo performances only", "Use of elaborate makeup", "Strict adherence to scripts"],
+                correctAnswer: "Use of elaborate makeup"
+            },
+            {
+                question: "Which of these is a famous Cải Lương play?",
+                choices: ["Cô Hồn", "Người Tình Không Chân Dung", "Gió Bụi Ngàn Khơi", "Nỗi Buồn Gác Trọ Cầm"],
+                correctAnswer: "Người Tình Không Chân Dung"
+            },
+            // Add more questions similarly
+        ];
+
+        let currentQuestion = 0;
+        let score = 0;
+
+        // Function to start the quiz for a specific topic
+        function startQuiz(topic) {
+            // Generate random order of questions (if needed)
+            shuffleArray(quizQuestions);
+
+            // Hide topics table
+            document.getElementById('topicsTable').style.display = 'none';
+
+            // Show quiz container
+            document.getElementById('quizContainer').style.display = 'block';
+
+            // Display first question
+            displayQuestion(currentQuestion);
+        }
+
+        // Function to display a question and choices
+        function displayQuestion(questionIndex) {
+            const questionElement = document.getElementById('question');
+            const choicesElement = document.getElementById('choices');
+            const question = quizQuestions[questionIndex];
+
+            questionElement.textContent = question.question;
+
+            // Clear previous choices
+            choicesElement.innerHTML = '';
+
+            // Display choices
+            question.choices.forEach(choice => {
+                const li = document.createElement('li');
+                li.textContent = choice;
+                li.onclick = () => {
+                    checkAnswer(choice, question.correctAnswer);
+                };
+                choicesElement.appendChild(li);
+            });
+        }
+
+        // Function to check the selected answer
+        function checkAnswer(userAnswer, correctAnswer) {
+            if (userAnswer === correctAnswer) {
+                score++;
+            }
+            // Highlight correct answer
+            highlightCorrectAnswer(correctAnswer);
+
+            // Disable further clicks on choices
+            document.querySelectorAll('#choices li').forEach(choice => {
+                choice.onclick = null;
+            });
+
+            // Show next button
+            document.getElementById('nextButton').style.display = 'block';
+        }
+
+        // Function to highlight the correct answer
+        function highlightCorrectAnswer(correctAnswer) {
+            const choices = document.querySelectorAll('#choices li');
+            choices.forEach(choice => {
+                if (choice.textContent === correctAnswer) {
+                    choice.style.backgroundColor = '#4CAF50'; // Green for correct answer
+                } else {
+                    choice.style.backgroundColor = '#ff4d4d'; // Red for wrong answer
+                }
+            });
+        }
+
+        // Event listener for next button
+        document.getElementById('nextButton').addEventListener('click', () => {
+            currentQuestion++;
+            if (currentQuestion < quizQuestions.length) {
+                displayQuestion(currentQuestion);
+                resetChoices();
+            } else {
+                showResult();
+            }
+        });
+
+        // Function to reset choice background colors
+        function resetChoices() {
+            const choices = document.querySelectorAll('#choices li');
+            choices.forEach(choice => {
+                choice.style.backgroundColor = '';
+            });
+            document.getElementById('nextButton').style.display = 'none';
+        }
+
+        // Function to display quiz result
+        function showResult() {
+            const resultContainer = document.getElementById('resultContainer');
+            const resultElement = document.getElementById('result');
+            const playAgainButton = document.getElementById('playAgainButton');
+
+            resultElement.textContent = `You scored ${score} out of ${quizQuestions.length}`;
+
+            // Show result container
+            resultContainer.style.display = 'block';
+            
+            // Hide quiz container
+            document.getElementById('quizContainer').style.display = 'none';
+
+            // Event listener for play again button
+playAgainButton.addEventListener('click', () => {
+    resetQuiz();
+});
+
+        }
+
+        // Function to reset quiz
+function resetQuiz() {
+    currentQuestion = 0;
+    score = 0;
+    shuffleArray(quizQuestions); // Shuffle questions again if needed
+
+    // Hide result container
+    document.getElementById('resultContainer').style.display = 'none';
+
+    // Show topics table
+    document.getElementById('topicsTable').style.display = 'block';
+
+    // Display first question
+    displayQuestion(currentQuestion);
+}
+
+
+        // Utility function to shuffle array (Fisher-Yates shuffle)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+    </script>
+</body>
+</html>

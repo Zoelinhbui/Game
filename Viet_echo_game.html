@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Main City Page</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link type="text/css" rel="stylesheet" href="main.css">
+    <style>
+        body {
+            background-color: #bfe3dd;
+            color: #000;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        a {
+            color: #2983ff;
+        }
+
+        .buttonContainer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+
+        .buttonContainer button {
+            margin-right: 10px;
+            margin-left: 80px;
+            padding: 10px 20px;
+            background-color: #2983ff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #musicalRoomButton {
+            background-color: #2983ff; /* Adjusted color for clarity */
+        }
+
+        #classRoomButton {
+            background-color: #4CAF50; /* Adjusted color for clarity */
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+
+    <div id="info">
+        <a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> webgl - animation - keyframes<br/>
+        Model: <a href="https://artstation.com/artwork/1AGwX" target="_blank" rel="noopener">Littlest Tokyo</a> by
+        <a href="https://artstation.com/glenatron" target="_blank" rel="noopener">Glen Fox</a>, CC Attribution.
+    </div>
+
+    <div class="buttonContainer">
+        <button id="musicalRoomButton">Musical Room</button>
+        <button id="classRoomButton">Classroom</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../build/three.module.js",
+                "three/addons/": "./jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import Stats from 'three/addons/libs/stats.module.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+        let mixer, character, carCollidableMeshList = [];
+        const clock = new THREE.Clock();
+        const container = document.getElementById('container');
+        const stats = new Stats();
+        container.appendChild(stats.dom);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xbfe3dd);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 100);
+        camera.position.set(5, 2, 8);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0.5, 0);
+        controls.update();
+        controls.enablePan = false;
+        controls.enableDamping = true;
+
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('jsm/libs/draco/gltf/');
+        const loader = new GLTFLoader();
+        loader.setDRACOLoader(dracoLoader);
+
+        // Load the environment model
+        loader.load('models/gltf/invasion_map_-_miniroyale.io.glb', function(gltf) {
+            const model = gltf.scene;
+            model.position.set(1, 1, 1);
+            model.scale.set(1, 1, 1);
+            scene.add(model);
+
+            // Add colliders for cars only
+            model.traverse(function(child) {
+                if (child.isMesh && child.name.includes("Car")) {
+                    child.geometry.computeBoundingBox();
+                    const box = new THREE.Box3().setFromObject(child);
+                    carCollidableMeshList.push(box);
+                }
+            });
+        }, undefined, function(e) {
+            console.error(e);
+        });
+
+        // Load the character model
+        loader.load('models/gltf/kid_boy.glb', function(gltf) {
+            character = gltf.scene;
+            character.position.set(5, 0, 5);
+            character.scale.set(1, 1, 1);
+            scene.add(character);
+
+            // Adjust initial y-coordinate to place the character on the road
+            detectGround(character);
+
+            renderer.setAnimationLoop(animate);
+        }, undefined, function(e) {
+            console.error(e);
+        });
+
+
+        loader.load('models/gltf/character_-_fire_fighter.glb', function(gltf) {
+            const model = gltf.scene;
+            model.position.set(20, 1, 10);
+            model.scale.set(1, 1, 1);
+            scene.add(model);
+            // Add colliders for cars only
+            model.traverse(function(child) {
+                if (child.isMesh && child.name.includes("Car")) { // Adjust this condition as needed
+                    child.geometry.computeBoundingBox();
+                    const box = new THREE.Box3().setFromObject(child);
+                    carCollidableMeshList.push(box);
+                }
+            });
+        }, undefined, function(e) {
+            console.error(e);
+        });
+
+        window.onresize = function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        // Movement variables
+        const moveSpeed = 0.1;
+        const rotateSpeed = 0.05;
+        const keys = {};
+
+        // Keydown event listener
+        document.addEventListener('keydown', (event) => {
+            keys[event.code] = true;
+        });
+
+        // Keyup event listener
+        document.addEventListener('keyup', (event) => {
+            keys[event.code] = false;
+        });
+
+        function detectCollision() {
+            const boundingBox = new THREE.Box3().setFromObject(character);
+
+            for (let i = 0; i < carCollidableMeshList.length; i++) {
+                if (boundingBox.intersectsBox(carCollidableMeshList[i])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function detectGround(object) {
+            const downRay = new THREE.Raycaster(object.position, new THREE.Vector3(0, -1, 0), 0, 10);
+            const intersects = downRay.intersectObjects(scene.children, true);
+
+            if (intersects.length > 0) {
+                const groundY = intersects[0].point.y;
+                object.position.y = groundY + 2; // Adjust object height as needed
+            }
+        }
+
+        function update() {
+            if (character) {
+                const initialPosition = character.position.clone();
+
+                if (keys['KeyS']) {
+                    character.translateZ(-moveSpeed); // Move forward
+                }
+                if (keys['KeyW']) {
+                    character.translateZ(moveSpeed); // Move backward
+                }
+                if (keys['KeyA']) {
+                    character.rotation.y += rotateSpeed; // Rotate left
+                }
+                if (keys['KeyD']) {
+                    character.rotation.y -= rotateSpeed; // Rotate right
+                }
+
+                if (detectCollision()) {
+                    character.position.copy(initialPosition); // Prevent passing through cars
+                }
+
+                detectGround(character);
+
+                // Update camera position to follow the character's back
+                const relativeCameraOffset = new THREE.Vector3(-3, 2, -17);
+                const cameraOffset = relativeCameraOffset.applyMatrix4(character.matrixWorld);
+                camera.position.lerp(cameraOffset, 0.1); // Smooth camera movement
+                camera.lookAt(character.position);
+                controls.target.set(character.position.x, character.position.y + 1, character.position.z);
+                controls.update();
+            }
+        }
+
+        function animate() {
+            const delta = clock.getDelta();
+            update();
+            stats.update();
+            renderer.render(scene, camera);
+        }
+
+        // Musical room button event listener
+        document.getElementById('musicalRoomButton').addEventListener('click', () => {
+            window.location.href = 'A1_musical_room.html';
+        });
+
+        // Classroom button event listener
+        document.getElementById('classRoomButton').addEventListener('click', () => {
+            window.location.href = 'A1_Classroom.html';
+        });
+    </script>
+</body>
+</html>
